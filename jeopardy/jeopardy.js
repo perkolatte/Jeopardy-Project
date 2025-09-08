@@ -106,7 +106,10 @@ async function fillTable() {
 
   const $tr = $("<tr>");
   for (let category of categories) {
-    const $th = $("<th>").text(category.title);
+    // wrap category title in a .category-title so CSS can center/wrap it
+    const $th = $("<th>").append(
+      $("<span>").addClass("category-title").text(category.title)
+    );
     $tr.append($th);
   }
   $thead.append($tr);
@@ -116,11 +119,12 @@ async function fillTable() {
     const $row = $("<tr>");
     for (let catIdx = 0; catIdx < categories.length; catIdx++) {
       // Each cell starts as '?', with data attributes for lookup
+      // each cell contains a span.cell-content we can measure and scale
       const $cell = $("<td>")
-        .text("?")
         .attr("data-cat", catIdx)
         .attr("data-clue", clueIdx)
-        .addClass("clue-cell");
+        .addClass("clue-cell")
+        .append($("<span>").addClass("cell-content").text("?"));
       $row.append($cell);
     }
     $tbody.append($row);
@@ -135,7 +139,24 @@ async function fillTable() {
  * - if currently "answer", ignore click
  * */
 
-function handleClick(evt) {}
+function handleClick(evt) {
+  // In a delegated handler, `this` is the element matched by the selector (the <td>).
+  const $cell = $(this);
+  const catIdx = $cell.data("cat");
+  const clueIdx = $cell.data("clue");
+  const clue = categories[catIdx].clues[clueIdx];
+
+  if (clue.showing === null) {
+    $cell.find(".cell-content").text(clue.question);
+    clue.showing = "question";
+  } else if (clue.showing === "question") {
+    $cell.find(".cell-content").text(clue.answer);
+    clue.showing = "answer";
+  }
+  // refit the text for this cell
+  fitTextInCell($cell);
+  // If already showing answer, do nothing
+}
 
 /** Wipe the current Jeopardy board, show the loading spinner,
  * and update the button used to fetch data.
@@ -179,9 +200,16 @@ async function setupAndStart() {
 // TODO
 
 /** On page load, add event handler for clicking clues */
-
-// TODO
+$(function () {
+  $("#jeopardy").on("click", ".clue-cell", handleClick);
+});
 
 $(async function () {
   await setupAndStart();
+  // fit text initially (in case async fetch changed sizes)
+  fitAllCellText();
+  // re-fit on window resize
+  $(window).on("resize", function () {
+    fitAllCellText();
+  });
 });
