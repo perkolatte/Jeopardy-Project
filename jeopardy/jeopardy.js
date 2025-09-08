@@ -20,6 +20,22 @@
 
 let categories = [];
 
+/** Configuration variables used across the app */
+const CONFIG = {
+  NUM_CATEGORIES: 6,
+  NUM_CLUES: 5,
+  // Using a replacement API here because the Springboard project API
+  // is missing convenient sampling features; keeping this configurable
+  // makes swapping the endpoint simple if desired later.
+  API_BASE: "https://rithm-jeopardy.herokuapp.com/api",
+};
+
+// Note: the original assignment references the Springboard API at
+// "https://projects.springboard.com/jeopardy/api". That API is missing
+// convenient sampling endpoints, so this code uses a replacement
+// API (Rithm's hosted jService mirror) by default. Swap CONFIG.API_BASE
+// to the Springboard URL if/when their API provides the necessary features.
+
 /**
  * Sanitize HTML from API so we allow a small set of formatting tags
  * (like <i>, <em>, <b>, <strong>, <u>, <br>) but strip any other tags/attributes.
@@ -27,40 +43,32 @@ let categories = [];
 function sanitizeHtml(dirty) {
   if (!dirty) return "";
   // Unescape common backslash-escaped characters that may come from the API
-  // e.g. "it\'s" -> "it's" so the UI doesn't show a literal backslash
   dirty = String(dirty).replace(/\\'/g, "'").replace(/\\"/g, '"');
 
-  const allowed = new Set([
-    "B",
-    "STRONG",
-    "I",
-    "EM",
-    "U",
-    "BR",
-    "P",
-    "SPAN",
-    "SMALL",
-    "SUB",
-    "SUP",
-  ]);
-  const template = document.createElement("template");
-  template.innerHTML = dirty;
+  // Whitelist of tags we allow through DOMPurify
+  const ALLOWED_TAGS = [
+    "b",
+    "strong",
+    "i",
+    "em",
+    "u",
+    "br",
+    "p",
+    "span",
+    "small",
+    "sub",
+    "sup",
+  ];
 
-  function walk(node) {
-    if (node.nodeType === Node.TEXT_NODE) return node.textContent;
-    if (node.nodeType !== Node.ELEMENT_NODE) return "";
-    const tag = node.tagName.toUpperCase();
-    // If tag not allowed, unwrap children (i.e. drop the tag but keep text)
-    if (!allowed.has(tag)) {
-      return Array.from(node.childNodes).map(walk).join("");
-    }
-    // Allowed tag: reconstruct without attributes
-    if (tag === "BR") return "<br/>";
-    const inner = Array.from(node.childNodes).map(walk).join("");
-    return `<${tag.toLowerCase()}>${inner}</${tag.toLowerCase()}>`;
+  // Use DOMPurify if available; fall back to a minimal text-escaping.
+  if (typeof DOMPurify !== "undefined" && DOMPurify.sanitize) {
+    return DOMPurify.sanitize(dirty, { ALLOWED_TAGS });
   }
 
-  return Array.from(template.content.childNodes).map(walk).join("");
+  // Fallback: strip tags by creating a template and reading textContent
+  const template = document.createElement("template");
+  template.textContent = dirty;
+  return template.innerHTML;
 }
 
 /** Get NUM_CATEGORIES random category from API.
@@ -68,9 +76,12 @@ function sanitizeHtml(dirty) {
  * Returns array of category ids
  */
 
-async function getCategoryIds() {
+async function getCategoryIds(num = CONFIG.NUM_CATEGORIES) {
+  // Request more categories than we need to give better randomization room,
+  // then shuffle and pick `num` ids.
+  const fetchCount = Math.max(14, num * 3);
   const response = await axios.get(
-    "https://rithm-jeopardy.herokuapp.com/api/categories?count=14"
+    `${CONFIG.API_BASE}/categories?count=${fetchCount}`
   );
   const categoriesArr = response.data;
 
@@ -80,10 +91,11 @@ async function getCategoryIds() {
     [categoriesArr[i], categoriesArr[j]] = [categoriesArr[j], categoriesArr[i]];
   }
 
-  // Take the first 6 categories and extract their IDs
-  const categoryIds = categoriesArr.slice(0, 6).map((category) => category.id);
+  // Take the first `num` categories and extract their IDs
+  const categoryIds = categoriesArr
+    .slice(0, num)
+    .map((category) => category.id);
 
-  // Return the array of IDs
   return categoryIds;
 }
 
@@ -103,16 +115,19 @@ async function getCategory(catId) {
   console.log("getCategory called with catId:", catId);
   try {
     // 1. Fetch category data from the API
-    const response = await axios.get(
-      `https://rithm-jeopardy.herokuapp.com/api/category?id=${catId}`
-    );
+    const response = await axios.get(`${CONFIG.API_BASE}/category?id=${catId}`);
     const categoryData = response.data;
 
     // 2. Extract the title
     const title = categoryData.title;
 
-    // 3. Format the clues: only first 5, each with question, answer, showing: null
-    const clues = categoryData.clues.slice(0, 5).map((clue) => ({
+    // 3. Randomly pick NUM_CLUES clues for this category (safer than taking first 5)
+    const chosen =
+      typeof _ !== "undefined" && _.sampleSize
+        ? _.sampleSize(categoryData.clues, CONFIG.NUM_CLUES)
+        : categoryData.clues.slice(0, CONFIG.NUM_CLUES);
+
+    const clues = chosen.map((clue) => ({
       question: clue.question,
       answer: clue.answer,
       showing: null,
@@ -196,8 +211,6 @@ function handleClick(evt) {
     $cell.find(".cell-content").html(sanitizeHtml(clue.answer));
     clue.showing = "answer";
   }
-  // refit the text for this cell
-  fitTextInCell($cell);
   // If already showing answer, do nothing
 }
 
@@ -262,10 +275,7 @@ $(function () {
 
 $(async function () {
   await setupAndStart();
-  // fit text initially (in case async fetch changed sizes)
-  fitAllCellText();
-  // re-fit on window resize
-  $(window).on("resize", function () {
-    fitAllCellText();
-  });
+  // No dynamic per-cell fitting is used in this build; the CSS provides
+  // readable static font sizes. If you need automatic fitting, reintroduce
+  // fitAllCellText() and fitTextInCell() implementations here.
 });
