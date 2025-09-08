@@ -1,0 +1,15 @@
+# Node and Mac system files
+node_modules/
+.DS_Store
+.env
+*.log
+
+# VS Code settings
+.vscode/
+
+# OS junk files
+Thumbs.db
+
+# Python cache (if any)
+__pycache__/
+*.pyc
