@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
     <meta
       name="viewport"
       content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0"
@@ -15,11 +14,26 @@
     <link rel="stylesheet" href="jeopardy.css" />
   </head>
   <body>
+    <div class="controls">
+      <button id="start-btn" type="button">Restart</button>
+    </div>
     <div id="board">
       <table id="jeopardy">
         <thead></thead>
         <tbody></tbody>
       </table>
+      <div
+        id="loading-overlay"
+        style="display: none"
+        role="status"
+        aria-live="polite"
+        aria-hidden="true"
+      >
+        <div>
+          <div class="spinner" aria-hidden="true"></div>
+          <div class="loading-text">Loading...</div>
+        </div>
+      </div>
     </div>
 
     <script src="https://unpkg.com/jquery"></script>

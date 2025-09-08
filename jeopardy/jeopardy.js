@@ -20,6 +20,49 @@
 
 let categories = [];
 
+/**
+ * Sanitize HTML from API so we allow a small set of formatting tags
+ * (like <i>, <em>, <b>, <strong>, <u>, <br>) but strip any other tags/attributes.
+ */
+function sanitizeHtml(dirty) {
+  if (!dirty) return "";
+  // Unescape common backslash-escaped characters that may come from the API
+  // e.g. "it\'s" -> "it's" so the UI doesn't show a literal backslash
+  dirty = String(dirty).replace(/\\'/g, "'").replace(/\\"/g, '"');
+
+  const allowed = new Set([
+    "B",
+    "STRONG",
+    "I",
+    "EM",
+    "U",
+    "BR",
+    "P",
+    "SPAN",
+    "SMALL",
+    "SUB",
+    "SUP",
+  ]);
+  const template = document.createElement("template");
+  template.innerHTML = dirty;
+
+  function walk(node) {
+    if (node.nodeType === Node.TEXT_NODE) return node.textContent;
+    if (node.nodeType !== Node.ELEMENT_NODE) return "";
+    const tag = node.tagName.toUpperCase();
+    // If tag not allowed, unwrap children (i.e. drop the tag but keep text)
+    if (!allowed.has(tag)) {
+      return Array.from(node.childNodes).map(walk).join("");
+    }
+    // Allowed tag: reconstruct without attributes
+    if (tag === "BR") return "<br/>";
+    const inner = Array.from(node.childNodes).map(walk).join("");
+    return `<${tag.toLowerCase()}>${inner}</${tag.toLowerCase()}>`;
+  }
+
+  return Array.from(template.content.childNodes).map(walk).join("");
+}
+
 /** Get NUM_CATEGORIES random category from API.
  *
  * Returns array of category ids
@@ -108,7 +151,7 @@ async function fillTable() {
   for (let category of categories) {
     // wrap category title in a .category-title so CSS can center/wrap it
     const $th = $("<th>").append(
-      $("<span>").addClass("category-title").text(category.title)
+      $("<span>").addClass("category-title").html(sanitizeHtml(category.title))
     );
     $tr.append($th);
   }
@@ -147,10 +190,10 @@ function handleClick(evt) {
   const clue = categories[catIdx].clues[clueIdx];
 
   if (clue.showing === null) {
-    $cell.find(".cell-content").text(clue.question);
+    $cell.find(".cell-content").html(sanitizeHtml(clue.question));
     clue.showing = "question";
   } else if (clue.showing === "question") {
-    $cell.find(".cell-content").text(clue.answer);
+    $cell.find(".cell-content").html(sanitizeHtml(clue.answer));
     clue.showing = "answer";
   }
   // refit the text for this cell
@@ -162,18 +205,25 @@ function handleClick(evt) {
  * and update the button used to fetch data.
  */
 
-function showLoadingView() {}
+function showLoadingView() {
+  const overlay = document.getElementById("loading-overlay");
+  if (overlay) {
+    overlay.style.display = "flex";
+    overlay.setAttribute("aria-hidden", "false");
+    document.body.setAttribute("aria-busy", "true");
+  }
+}
 
 /** Remove the loading spinner and update the button used to fetch data. */
 
-function hideLoadingView() {}
-
-/** Start game:
- *
- * - get random category Ids
- * - get data for each category
- * - create HTML table
- * */
+function hideLoadingView() {
+  const overlay = document.getElementById("loading-overlay");
+  if (overlay) {
+    overlay.style.display = "none";
+    overlay.setAttribute("aria-hidden", "true");
+    document.body.removeAttribute("aria-busy");
+  }
+}
 
 /**
  * Start game:
@@ -183,6 +233,7 @@ function hideLoadingView() {}
  */
 async function setupAndStart() {
   console.log("setupAndStart called");
+  showLoadingView();
   // 1. Get random category IDs (6 for the board)
   const categoryIds = await getCategoryIds(6);
 
@@ -193,15 +244,20 @@ async function setupAndStart() {
 
   // 3. Fill the table with the categories and clues
   fillTable();
+  hideLoadingView();
 }
 
 /** On click of start / restart button, set up game. */
 
-// TODO
-
 /** On page load, add event handler for clicking clues */
 $(function () {
   $("#jeopardy").on("click", ".clue-cell", handleClick);
+  $("#start-btn").on("click", async function () {
+    const $btn = $(this);
+    $btn.prop("disabled", true);
+    await setupAndStart();
+    $btn.prop("disabled", false);
+  });
 });
 
 $(async function () {
