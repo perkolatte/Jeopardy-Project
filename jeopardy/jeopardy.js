@@ -20,13 +20,28 @@
 
 let categories = [];
 
-
 /** Get NUM_CATEGORIES random category from API.
  *
  * Returns array of category ids
  */
 
-function getCategoryIds() {
+async function getCategoryIds() {
+  const response = await axios.get(
+    "https://rithm-jeopardy.herokuapp.com/api/categories?count=14"
+  );
+  const categoriesArr = response.data;
+
+  // Shuffle the array (Fisher-Yates shuffle)
+  for (let i = categoriesArr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [categoriesArr[i], categoriesArr[j]] = [categoriesArr[j], categoriesArr[i]];
+  }
+
+  // Take the first 6 categories and extract their IDs
+  const categoryIds = categoriesArr.slice(0, 6).map((category) => category.id);
+
+  // Return the array of IDs
+  return categoryIds;
 }
 
 /** Return object with data about a category:
@@ -41,7 +56,34 @@ function getCategoryIds() {
  *   ]
  */
 
-function getCategory(catId) {
+async function getCategory(catId) {
+  console.log("getCategory called with catId:", catId);
+  try {
+    // 1. Fetch category data from the API
+    const response = await axios.get(
+      `https://rithm-jeopardy.herokuapp.com/api/category?id=${catId}`
+    );
+    const categoryData = response.data;
+
+    // 2. Extract the title
+    const title = categoryData.title;
+
+    // 3. Format the clues: only first 5, each with question, answer, showing: null
+    const clues = categoryData.clues.slice(0, 5).map((clue) => ({
+      question: clue.question,
+      answer: clue.answer,
+      showing: null,
+    }));
+
+    // 4. Return the formatted object
+    return {
+      title,
+      clues,
+    };
+  } catch (err) {
+    console.warn(`Failed to fetch category for id ${catId}:`, err.message);
+    return null;
+  }
 }
 
 /** Fill the HTML table#jeopardy with the categories & cells for questions.
@@ -53,6 +95,36 @@ function getCategory(catId) {
  */
 
 async function fillTable() {
+  console.log("fillTable called");
+  console.log("categories:", categories);
+
+  const $thead = $("#jeopardy thead");
+  const $tbody = $("#jeopardy tbody");
+
+  $thead.empty();
+  $tbody.empty();
+
+  const $tr = $("<tr>");
+  for (let category of categories) {
+    const $th = $("<th>").text(category.title);
+    $tr.append($th);
+  }
+  $thead.append($tr);
+
+  // Create 5 rows for clues
+  for (let clueIdx = 0; clueIdx < 5; clueIdx++) {
+    const $row = $("<tr>");
+    for (let catIdx = 0; catIdx < categories.length; catIdx++) {
+      // Each cell starts as '?', with data attributes for lookup
+      const $cell = $("<td>")
+        .text("?")
+        .attr("data-cat", catIdx)
+        .attr("data-clue", clueIdx)
+        .addClass("clue-cell");
+      $row.append($cell);
+    }
+    $tbody.append($row);
+  }
 }
 
 /** Handle clicking on a clue: show the question or answer.
@@ -63,21 +135,17 @@ async function fillTable() {
  * - if currently "answer", ignore click
  * */
 
-function handleClick(evt) {
-}
+function handleClick(evt) {}
 
 /** Wipe the current Jeopardy board, show the loading spinner,
  * and update the button used to fetch data.
  */
 
-function showLoadingView() {
-
-}
+function showLoadingView() {}
 
 /** Remove the loading spinner and update the button used to fetch data. */
 
-function hideLoadingView() {
-}
+function hideLoadingView() {}
 
 /** Start game:
  *
@@ -86,7 +154,24 @@ function hideLoadingView() {
  * - create HTML table
  * */
 
+/**
+ * Start game:
+ * - get random category Ids
+ * - get data for each category
+ * - create HTML table
+ */
 async function setupAndStart() {
+  console.log("setupAndStart called");
+  // 1. Get random category IDs (6 for the board)
+  const categoryIds = await getCategoryIds(6);
+
+  // 2. Fetch data for each category (in parallel)
+  let catData = await Promise.all(categoryIds.map((id) => getCategory(id)));
+  // Filter out any nulls (failed fetches)
+  categories = catData.filter((c) => c !== null);
+
+  // 3. Fill the table with the categories and clues
+  fillTable();
 }
 
 /** On click of start / restart button, set up game. */
@@ -96,3 +181,7 @@ async function setupAndStart() {
 /** On page load, add event handler for clicking clues */
 
 // TODO
+
+$(async function () {
+  await setupAndStart();
+});

@@ -1,3 +1,57 @@
+body {
+  background: #060ce9;
+  font-family: "Copse", "Arial Black", Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+#jeopardy {
+  margin: 40px auto;
+  border-collapse: collapse;
+  box-shadow: 0 0 30px #0008;
+  background: #115ff4;
+  min-width: 800px;
+  max-width: 90vw;
+}
+
+#jeopardy th,
+#jeopardy td {
+  border: 3px solid #fff;
+  width: 120px;
+  height: 80px;
+  text-align: center;
+  vertical-align: middle;
+  font-size: 1.5rem;
+  font-family: inherit;
+  text-transform: uppercase;
+  font-weight: bold;
+  color: #fff;
+  background: #115ff4;
+  letter-spacing: 2px;
+  transition: background 0.2s, color 0.2s;
+}
+
+#jeopardy th {
+  background: #060ce9;
+  color: #ffd700;
+  font-size: 1.2rem;
+  padding: 10px 0;
+  border-bottom: 5px solid #fff;
+}
+
+#jeopardy td.clue-cell {
+  cursor: pointer;
+  background: #115ff4;
+  color: #fff;
+  font-size: 2rem;
+  user-select: none;
+}
+
+#jeopardy td.clue-cell:active {
+  background: #28a200;
+}
+
+/* Optional: Add a gold border for selected/question/answer states later */
 /* some colors you may find useful:
   #115ff4
   #060ce9
